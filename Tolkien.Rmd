@@ -1,0 +1,244 @@
+---
+title: "Tolkien's Legendarium - Lexical Dispersion Plot"
+output: html_document
+---
+
+### Source
+
+* [The Hobbit](https://www.anderson1.org/site/handlers/filedownload.ashx?moduleinstanceid=24440&dataid=44258&FileName=hobbit.pdf)
+* [The Lord of The Rings](https://www.kaggle.com/ashishsinhaiitr/lord-of-the-rings-text)
+* [The Children of Húrin](https://archive.org/details/J.R.R.TolkienTheChildrenOfHurin)
+* [The Silmarillion](http://www.ae-lib.org.ua/texts-c/tolkien\_\_the_silmarillion\_\_en.htm)
+
+```{r setup, warning = FALSE, message=FALSE}
+knitr::opts_chunk$set(
+	fig.align = "center",
+	fig.pos = "h",
+	message = FALSE,
+	warning = FALSE,
+	out.width = "90%",
+	dpi = 300,
+	cache = TRUE
+)
+
+library(dplyr)
+library(ggplot2)
+library(ggtext)
+library(stringr)
+library(tidyr)
+library(ngram)
+library(extrafont)
+library(grid)
+library(gridExtra)
+loadfonts()
+
+newtheme <- theme_minimal(base_family = "Candara")+
+  theme(plot.title = element_markdown(size = 10.5, color = "grey30", margin = margin(b = -8)),
+        plot.subtitle = element_text(size = 9.5, color = "grey40", hjust = 1),
+        legend.position = "none",
+        panel.grid = element_blank(),
+        panel.spacing = unit(0, "mm"),
+        panel.background = element_blank(),
+        strip.background = element_blank(),
+        strip.text = element_text(size = 8, margin = margin(t = 2), 
+                                  color = "grey60", 
+                                  family = "Franklin Gothic Medium Cond"),
+        axis.text = element_blank(),
+        axis.title = element_blank())
+
+Legendarium_titles <- c("The Hobbit",
+                        "The Fellowship of the Ring",
+                        "The Two Towers",
+                        "The Return of the King",
+                        "The Silmarillion*",
+                        "The Children of Húrin*")
+```
+
+```{r read-data, eval = FALSE}
+readLines_wrap <- function(c) {
+  readLines(paste0("data/", c), encoding = "UTF-8")%>%
+  as.data.frame() %>% `colnames<-`("Text")
+}
+
+Hobbit_raw <- readLines_wrap("The Hobbit.txt")
+
+LoTR_1_raw <- readLines_wrap("01 - The Fellowship Of The Ring.txt")
+
+LoTR_2_raw <- readLines_wrap("02 - The Two Towers.txt")
+
+LoTR_3_raw <- readLines_wrap("03 - The Return Of The King.txt")
+
+Sil_raw <- readLines_wrap("The Silmarillion.txt")
+
+CoH_raw <- readLines_wrap("The Children of Hurin.txt")
+```
+
+
+```{r functions}
+## Functions for Data Cleaning
+Tolkien_cleaning <- function(text_raw) {
+  text_raw %>%
+    mutate(Text = trimws(Text))%>%
+    filter(Text != "")%>%
+    mutate(Text = str_remove_all(Text, "\\f"))
+}
+
+Tolkien_summarise <- function(text) {
+  text %>%
+    group_by(Chapter) %>%
+    mutate(Title = nth(Text, 2))%>%
+    slice(-1)%>%
+    filter(Text != Title, Text != as.character(Chapter))%>%
+    summarise(Title = unique(Title),
+              Text = paste(Text, collapse = " "),
+              Word_Count = sum(wordcount(Text)))
+}
+
+## Keyword Locating
+keyword_locate <- function(text_df, keyword) {
+  kword_loc <- sapply(text_df$Text, function(x) 
+    { loc <- tolower(x) %>% str_split(" ") %>% unlist()%>%
+              str_which(tolower(keyword))
+    if(length(loc) == 0) {NA}
+    else {loc}
+    })
+  
+  data.frame(Chapter = rep(text_df$Chapter, sapply(kword_loc, length)),
+             Keyword_Loc = unlist(kword_loc),
+             Keyword_Count = length(unlist(kword_loc)[!is.na(unlist(kword_loc))]))%>%
+    mutate(Chapter = factor(Chapter, levels(text_df$Chapter))) %>%
+    merge(text_df)
+    
+}
+
+## Lexical Dispersion Plot
+lex_dispersion <- function(title, Keyword_Loc_list) {
+  w_count <- formatC(sum(Legendarium_list[[title]]$Word_Count), 
+                                format = "f", big.mark = ",", digits = 0)
+  k_count <- Keyword_Loc_list[[title]][1, "Keyword_Count"]
+    
+  ggplot(Keyword_Loc_list[[title]]) +
+    geom_rect(data = Legendarium_list[[title]] %>% 
+                mutate(fill = (row_number() %% 2 == 1)),
+              aes(xmin = 0, xmax = Word_Count, 
+                  ymin = 0, ymax = 1, fill = fill))+
+    geom_segment(aes(x = Keyword_Loc, xend = Keyword_Loc,
+                     y = 0, yend = 1), 
+                 size = 0.5, color = "tomato3",
+                 alpha = 0.8)+
+    scale_fill_manual(values = c("#d5d6d9", "#ededed"))+
+    coord_cartesian(expand = FALSE)+
+    facet_grid(~ Chapter, scales = "free_x", space = "free_x",
+               switch = "x")+
+    labs(title = paste0("***", title, "*** - <span style='color:tomato4'>", 
+                        k_count, ifelse(k_count <= 1, " Time", " Times</span>")),
+         subtitle = paste(w_count, "Words"))+
+    newtheme
+  
+}
+```
+
+### Data Cleaning 
+
+```{r data-cleaning, eval = FALSE}
+## Hobbit --------------------
+Hobbit <- Hobbit_raw %>%
+  Tolkien_cleaning()%>%
+  slice(which(str_detect(Text, "Chapter 1")):n())%>%
+  mutate(Chapter =  findInterval(1:n(), which(str_detect(Text, "Chapter [0-9]+"))) %>%
+         as.factor())%>%
+  Tolkien_summarise()
+
+## LoTR ----------------------
+LoTR_cleaning <- function(text_raw, Volume) {
+  text_raw %>%
+    Tolkien_cleaning() %>%
+    slice( min(which(str_detect(Text, "_Chapter 1_"))):
+          (min(which(str_detect(Text, "Here ends the [a-z]+ part|======"))) - 1))%>%
+    mutate(Book = ifelse(row_number() < max(which(Text == "_Chapter 1_")),
+                         2 * Volume - 1, 2 * Volume),
+           Book = as.roman(Book)) %>%
+    group_by(Book) %>% 
+    mutate(Chapter = paste0(Book, "-", findInterval(1:n(), which(str_detect(Text, "_Chapter [0-9]+_")))))%>%
+    mutate(Chapter = factor(Chapter, levels = str_sort(unique(Chapter), numeric = TRUE))) %>%
+    mutate(Text = str_remove_all(Text, "_"))%>%
+    Tolkien_summarise()
+}
+
+LoTR_1 <- LoTR_cleaning(LoTR_1_raw, Volume = 1)
+LoTR_2 <- LoTR_cleaning(LoTR_2_raw, Volume = 2)
+LoTR_3 <- LoTR_cleaning(LoTR_3_raw, Volume = 3)
+
+## The Silmarillion -----------------
+Sil <- Sil_raw %>%
+  Tolkien_cleaning()%>%
+  slice( which(Text == "AINULINDALË"):
+        max(which(Text == "NOTE ON PRONUNCIATION") - 1))%>%
+  mutate(Chapter =  findInterval(1:n(), which(str_detect(Text, "Chapter [0-9]+"))))%>%
+  mutate(Chapter = case_when(row_number() < which(Text == "VALAQUENTA") ~ "AINU", 
+                             row_number() < which(Text == "QUENTA SILMARILLION") ~ "VALA", 
+                             row_number() >= which(Text == "OF THE RINGS OF POWER AND THE THIRD AGE") ~ "RINGS",
+                             row_number() >= which(Text == "AKALLABÊTH") ~ "AKALLABÊTH", 
+                             TRUE ~ as.character(Chapter)))%>%
+  filter(Chapter != "0") %>%
+  mutate(Chapter = factor(Chapter, levels = c("AINU", "VALA", as.character(1:24),
+                                              "AKALLABÊTH", "RINGS")))%>%
+  Tolkien_summarise()
+
+## The Children of Húrin ------------
+CoH <- CoH_raw %>%
+  Tolkien_cleaning()%>%
+  filter(!str_detect(Text, "—"))%>%
+  slice( which(str_detect(Text, "CHAPTER I")):
+        (which(str_detect(Text, "APPENDIX")) - 1))%>%
+  mutate(Chapter =  findInterval(1:n(), which(str_detect(Text, "CHAPTER "))))%>%
+  mutate(Chapter = as.factor(Chapter))%>%
+  Tolkien_summarise()
+
+Legendarium_list <- list(Hobbit, LoTR_1, LoTR_2, LoTR_3, Sil, CoH)%>%
+  `names<-`(Legendarium_titles)
+
+#save(Legendarium_list, file = "data/Legendarium.RData")
+```
+
+### Lexical Dispersion Plot
+
+```{r, fig.width= 10.5, fig.height = 5}
+load("data/Legendarium.RData")
+
+Legendarium_lex_dispersion <- function(keyword) {
+  Keyword_Loc_list <- lapply(Legendarium_list, keyword_locate, 
+                             keyword = keyword) %>%
+  `names<-`(Legendarium_titles)
+
+
+  lex_list <- lapply(Legendarium_titles, lex_dispersion, 
+                     Keyword_Loc_list = Keyword_Loc_list)
+  lex_width <- sapply(Legendarium_list, function(df) {sum(df$Word_Count)})%>%
+    unname()
+  
+  lex_matrix <- sapply(1:length(lex_width), function(x) {
+    out <- rep(x, max(lex_width))
+    if(x != which.max(lex_width)) {
+      out[(lex_width[x]+1):max(lex_width)] <- NA}
+    return(out)
+  }) %>% t()
+  
+  grid.arrange(
+    grobs = lex_list,
+    top = textGrob(c(toupper(paste0("The Appearance of the Word \"", 
+                                  keyword, "\" in Tolkien's Legendarium\n")), 
+                   "* Books Edited by Christopher Tolkien\n"),
+                 x = c(0.01, 0.99), hjust = c(0, 1), 
+                 gp = gpar(fontfamily = "Candara", 
+                           col = c("grey25", "grey50"), lineheight = 0.3,
+                           fontsize = c(13, 10.5), fontface = c("bold", "plain"))),
+    bottom = textGrob("@akela", 
+                 hjust = 1, vjust = 0, x = 0.99, y = 2,
+                 gp = gpar(fontfamily = "Candara", col = "grey65", fontsize = 10)),
+               layout_matrix = lex_matrix
+    )
+}
+Legendarium_lex_dispersion("tiding")
+```
+
