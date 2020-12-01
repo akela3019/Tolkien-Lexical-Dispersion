@@ -203,7 +203,7 @@ Legendarium_list <- list(Hobbit, LoTR_1, LoTR_2, LoTR_3, Sil, CoH)%>%
 
 ### Lexical Dispersion Plot
 
-```{r, fig.width= 10.5, fig.height = 5}
+```{r tiding, fig.width= 10.5, fig.height = 5}
 load("data/Legendarium.RData")
 
 Legendarium_lex_dispersion <- function(keyword) {
