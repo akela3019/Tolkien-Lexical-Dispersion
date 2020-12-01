@@ -239,6 +239,7 @@ Legendarium_lex_dispersion <- function(keyword) {
                layout_matrix = lex_matrix
     )
 }
+
 Legendarium_lex_dispersion("tiding")
 ```
 
