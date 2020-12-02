@@ -334,7 +334,7 @@ Legendarium_lex_dispersion(
 
 ```{r orc, fig.width= 11, fig.height = 5}
 Legendarium_lex_dispersion(
-  keyword = "Orc\" or Goblin\"",
+  keyword = "Orc\" or \"Goblin",
   keyword_regex = "\\borc\\b|\\borcs\\b|goblin")
 ```
 
