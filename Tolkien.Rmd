@@ -1,7 +1,19 @@
 ---
-title: "Tolkien's Legendarium - Lexical Dispersion Plot"
+title: "Lexical Dispersion Plot for Words in Tolkien's Legendarium"
 output: html_document
 ---
+<style>
+body{ 
+  font-size: 16px;
+  color:#4B4B4B;
+  font-family:"Cambria";
+  line-height:1.5em;
+  padding:1.2em;
+  margin:auto;
+  max-width:80em;
+  background:'white';
+}
+</style>
 
 ### Source
 
@@ -33,7 +45,7 @@ library(gridExtra)
 loadfonts()
 
 newtheme <- theme_minimal(base_family = "Candara")+
-  theme(plot.title = element_markdown(size = 10.5, color = "grey30", margin = margin(b = -8)),
+  theme(plot.title = element_markdown(size = 11, color = "grey30", margin = margin(b = -8)),
         plot.subtitle = element_text(size = 9.5, color = "grey40", hjust = 1),
         legend.position = "none",
         panel.grid = element_blank(),
@@ -52,6 +64,8 @@ Legendarium_titles <- c("The Hobbit",
                         "The Return of the King",
                         "The Silmarillion*",
                         "The Children of Húrin*")
+
+load("data/Legendarium.RData")
 ```
 
 ```{r read-data, eval = FALSE}
@@ -74,7 +88,7 @@ CoH_raw <- readLines_wrap("The Children of Hurin.txt")
 ```
 
 
-```{r functions}
+```{r data-cleaning-functions}
 ## Functions for Data Cleaning
 Tolkien_cleaning <- function(text_raw) {
   text_raw %>%
@@ -92,49 +106,6 @@ Tolkien_summarise <- function(text) {
     summarise(Title = unique(Title),
               Text = paste(Text, collapse = " "),
               Word_Count = sum(wordcount(Text)))
-}
-
-## Keyword Locating
-keyword_locate <- function(text_df, keyword) {
-  kword_loc <- sapply(text_df$Text, function(x) 
-    { loc <- tolower(x) %>% str_split(" ") %>% unlist()%>%
-              str_which(tolower(keyword))
-    if(length(loc) == 0) {NA}
-    else {loc}
-    })
-  
-  data.frame(Chapter = rep(text_df$Chapter, sapply(kword_loc, length)),
-             Keyword_Loc = unlist(kword_loc),
-             Keyword_Count = length(unlist(kword_loc)[!is.na(unlist(kword_loc))]))%>%
-    mutate(Chapter = factor(Chapter, levels(text_df$Chapter))) %>%
-    merge(text_df)
-    
-}
-
-## Lexical Dispersion Plot
-lex_dispersion <- function(title, Keyword_Loc_list) {
-  w_count <- formatC(sum(Legendarium_list[[title]]$Word_Count), 
-                                format = "f", big.mark = ",", digits = 0)
-  k_count <- Keyword_Loc_list[[title]][1, "Keyword_Count"]
-    
-  ggplot(Keyword_Loc_list[[title]]) +
-    geom_rect(data = Legendarium_list[[title]] %>% 
-                mutate(fill = (row_number() %% 2 == 1)),
-              aes(xmin = 0, xmax = Word_Count, 
-                  ymin = 0, ymax = 1, fill = fill))+
-    geom_segment(aes(x = Keyword_Loc, xend = Keyword_Loc,
-                     y = 0, yend = 1), 
-                 size = 0.5, color = "tomato3",
-                 alpha = 0.8)+
-    scale_fill_manual(values = c("#d5d6d9", "#ededed"))+
-    coord_cartesian(expand = FALSE)+
-    facet_grid(~ Chapter, scales = "free_x", space = "free_x",
-               switch = "x")+
-    labs(title = paste0("***", title, "*** - <span style='color:tomato4'>", 
-                        k_count, ifelse(k_count <= 1, " Time", " Times</span>")),
-         subtitle = paste(w_count, "Words"))+
-    newtheme
-  
 }
 ```
 
@@ -198,31 +169,98 @@ CoH <- CoH_raw %>%
 Legendarium_list <- list(Hobbit, LoTR_1, LoTR_2, LoTR_3, Sil, CoH)%>%
   `names<-`(Legendarium_titles)
 
-#save(Legendarium_list, file = "data/Legendarium.RData")
-```
-
-### Lexical Dispersion Plot
-
-```{r tiding, fig.width= 10.5, fig.height = 5}
-load("data/Legendarium.RData")
-
-Legendarium_lex_dispersion <- function(keyword) {
-  Keyword_Loc_list <- lapply(Legendarium_list, keyword_locate, 
-                             keyword = keyword) %>%
-  `names<-`(Legendarium_titles)
-
-
-  lex_list <- lapply(Legendarium_titles, lex_dispersion, 
-                     Keyword_Loc_list = Keyword_Loc_list)
-  lex_width <- sapply(Legendarium_list, function(df) {sum(df$Word_Count)})%>%
+lex_width <- sapply(Legendarium_list, function(df) {sum(df$Word_Count)})%>%
     unname()
   
-  lex_matrix <- sapply(1:length(lex_width), function(x) {
+lex_matrix <- sapply(1:length(lex_width), function(x) {
     out <- rep(x, max(lex_width))
     if(x != which.max(lex_width)) {
       out[(lex_width[x]+1):max(lex_width)] <- NA}
     return(out)
   }) %>% t()
+  
+#save(Legendarium_list, lex_width, lex_matrix, file = "data/Legendarium.RData")
+```
+
+### Lexical Dispersion Plot
+
+```{r functions-keyword-locating}
+Keyword_locate <- function(text, keyword_regex, exclude = NULL) {
+  split <- paste0("(?<=", tolower(keyword_regex), ")")
+  
+  if(!is.null(exclude)) {
+    split <- paste0(split, "(?<!", tolower(exclude), ")")
+  }
+  
+  split <- paste0(split, "\\S*")
+  
+  loc <- tolower(text) %>%
+    str_split(split) %>% 
+    unlist %>% trimws%>%
+    sapply(wordcount) %>% 
+    unname()
+  
+  loc <- loc[-length(loc)] %>% cumsum
+  
+  if(length(loc) == 0) {NA}
+  else {loc}
+}
+
+Keyword_df <- function(text_df, keyword_regex, exclude = NULL) {
+  
+  kword_loc <- sapply(text_df$Text, Keyword_locate, 
+                      keyword_regex = keyword_regex,
+                      exclude = exclude)
+  
+  data.frame(Chapter = rep(text_df$Chapter, sapply(kword_loc, length)),
+             Keyword_Loc = unlist(kword_loc),
+             Keyword_Count = length(unlist(kword_loc)[!is.na(unlist(kword_loc))]))%>%
+    mutate(Chapter = factor(Chapter, levels(text_df$Chapter))) %>%
+    merge(text_df %>% select(-Text))%>%
+    mutate()
+}
+```
+
+```{r functions-lexical-dispersion}
+## Lexical Dispersion Plot
+lex_dispersion <- function(title, Keyword_Loc_list) {
+  w_count <- formatC(sum(Legendarium_list[[title]]$Word_Count), 
+                                format = "f", big.mark = ",", digits = 0)
+  k_count <- Keyword_Loc_list[[title]][1, "Keyword_Count"]
+    
+  p <- ggplot(Keyword_Loc_list[[title]]) +
+    geom_rect(data = Legendarium_list[[title]] %>% 
+                mutate(fill = (row_number() %% 2 == 1)),
+              aes(xmin = 0, xmax = Word_Count, 
+                  ymin = 0, ymax = 1, fill = fill))+
+    scale_fill_manual(values = c("#d5d6d9", "#ededed"))+
+    coord_cartesian(expand = FALSE)+
+    facet_grid(~ Chapter, scales = "free_x", space = "free_x",
+               switch = "x")+
+    labs(title = paste0("***", title, "*** - <span style='color:tomato4'>", 
+                        k_count, ifelse(k_count <= 1, " Time", " Times</span>")),
+         subtitle = paste(w_count, "Words"))+
+    newtheme
+  
+  if(k_count > 0) {
+    p <- p + geom_segment(aes(x = Keyword_Loc, xend = Keyword_Loc,
+                              y = 0, yend = 1), 
+                          size = 0.5, color = "tomato3",
+                          alpha = 0.8)
+    }
+  
+  p
+}
+
+Legendarium_lex_dispersion <- function(keyword, keyword_regex, exclude = NULL) {
+  Keyword_Loc_list <- lapply(Legendarium_list, Keyword_df, 
+                             keyword_regex = keyword_regex, 
+                             exclude = exclude) %>%
+  `names<-`(Legendarium_titles)
+
+
+  lex_list <- lapply(Legendarium_titles, lex_dispersion, 
+                     Keyword_Loc_list = Keyword_Loc_list)
   
   grid.arrange(
     grobs = lex_list,
@@ -239,7 +277,30 @@ Legendarium_lex_dispersion <- function(keyword) {
                layout_matrix = lex_matrix
     )
 }
+```
 
-Legendarium_lex_dispersion("tiding")
+* ___Hope___/___Hopeful___
+
+```{r hope, fig.width= 11, fig.height = 5}
+Legendarium_lex_dispersion(
+  keyword = "hope\" or \"hopeful",
+  keyword_regex = "hope",
+  exclude = "no hope|hopeless")
+```
+
+* ___Hopeless/No hope/Desperate___
+
+```{r hopeless, fig.width= 11, fig.height = 5}
+Legendarium_lex_dispersion(
+  keyword = "hopeless\", \"no hope\" or \"desperate",
+  keyword_regex = "hopeless|desperate|no hope")
+```
+
+* ___Tiding___
+
+```{r tiding, fig.width= 11, fig.height = 5}
+Legendarium_lex_dispersion(
+  keyword = "tiding",
+  keyword_regex = "tiding")
 ```
 
