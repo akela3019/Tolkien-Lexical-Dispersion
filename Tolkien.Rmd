@@ -11,8 +11,10 @@ body{
   padding:1.2em;
   margin:auto;
   max-width:80em;
-  background:'white';
+  background:'whitesmoke';
 }
+
+
 </style>
 
 ### Source
@@ -52,7 +54,7 @@ newtheme <- theme_minimal(base_family = "Candara")+
         panel.spacing = unit(0, "mm"),
         panel.background = element_blank(),
         strip.background = element_blank(),
-        strip.text = element_text(size = 8, margin = margin(t = 2), 
+        strip.text = element_text(size = 7.5, margin = margin(t = 2), 
                                   color = "grey60", 
                                   family = "Franklin Gothic Medium Cond"),
         axis.text = element_blank(),
@@ -246,7 +248,7 @@ lex_dispersion <- function(title, Keyword_Loc_list) {
     p <- p + geom_segment(aes(x = Keyword_Loc, xend = Keyword_Loc,
                               y = 0, yend = 1), 
                           size = 0.5, color = "tomato3",
-                          alpha = 0.8)
+                          alpha = 0.5)
     }
   
   p
@@ -272,7 +274,7 @@ Legendarium_lex_dispersion <- function(keyword, keyword_regex, exclude = NULL) {
                            col = c("grey25", "grey50"), lineheight = 0.3,
                            fontsize = c(13, 10.5), fontface = c("bold", "plain"))),
     bottom = textGrob("@akela", 
-                 hjust = 1, vjust = 0, x = 0.99, y = 2,
+                 hjust = 1, vjust = 0, x = 0.99, y = 1,
                  gp = gpar(fontfamily = "Candara", col = "grey65", fontsize = 10)),
                layout_matrix = lex_matrix
     )
@@ -304,3 +306,42 @@ Legendarium_lex_dispersion(
   keyword_regex = "tiding")
 ```
 
+* ___Hobbit/Halfling___
+
+```{r hobbit, fig.width= 11, fig.height = 5}
+Legendarium_lex_dispersion(
+  keyword = "hobbit\" or \"halfling",
+  keyword_regex = "hobbit|halfling")
+```
+
+* ___Elf___
+
+```{r elf, fig.width= 11, fig.height = 5}
+Legendarium_lex_dispersion(
+  keyword = "elf",
+  keyword_regex = "\\belf\\b|\\belves\\b|\\belven\\b")
+```
+
+* ___Dwarf___
+
+```{r dwarf, fig.width= 11, fig.height = 5}
+Legendarium_lex_dispersion(
+  keyword = "dwarf",
+  keyword_regex = "dwarf|dwarves|dwarven")
+```
+
+* ___Orc/Goblin___
+
+```{r orc, fig.width= 11, fig.height = 5}
+Legendarium_lex_dispersion(
+  keyword = "Orc\" or Goblin\"",
+  keyword_regex = "\\borc\\b|\\borcs\\b|goblin")
+```
+
+* ___Eagle___
+
+```{r eagle, fig.width= 11, fig.height = 5}
+Legendarium_lex_dispersion(
+  keyword = "eagle",
+  keyword_regex = "eagle")
+```
