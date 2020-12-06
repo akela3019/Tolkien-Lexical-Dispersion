@@ -285,17 +285,17 @@ Legendarium_lex_dispersion <- function(keyword, keyword_regex, exclude = NULL) {
 
 ```{r hope, fig.width= 11, fig.height = 5}
 Legendarium_lex_dispersion(
-  keyword = "hope\" or \"hopeful",
-  keyword_regex = "hope",
+  keyword = "hope\", \"hopeful\" or \"estel",
+  keyword_regex = "hope|estel",
   exclude = "no hope|hopeless")
 ```
 
-* ___Hopeless/No hope/Desperate___
+* ___Hopeless/No hope/Desperate/Despair___
 
 ```{r hopeless, fig.width= 11, fig.height = 5}
 Legendarium_lex_dispersion(
   keyword = "hopeless\", \"no hope\" or \"desperate",
-  keyword_regex = "hopeless|desperate|no hope")
+  keyword_regex = "hopeless|desperate|no hope|despair")
 ```
 
 * ___Tiding___
