@@ -11,6 +11,10 @@
 | <img src="Tolkien_files/figure-html/hopeless-1.png" width = 95%/> |
 | ------ |
 
+* ___<ins>Doom/Fate</ins>___
+
+| <img src="Tolkien_files/figure-html/doom-1.png" width = 95%/> |
+| ------ |
 
 * ___<ins>Tiding</ins>___
 
