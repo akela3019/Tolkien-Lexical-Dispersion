@@ -297,6 +297,14 @@ Legendarium_lex_dispersion(
   keyword = "hopeless\", \"no hope\" or \"desperate",
   keyword_regex = "hopeless|desperate|no hope|despair")
 ```
+* ___Doom/Fate___
+
+```{r doom, fig.width= 11, fig.height = 5}
+Legendarium_lex_dispersion(
+  keyword = "doom\" or \"fate",
+  keyword_regex = "\\bdoom\\b|\\bdooms\\b|fate")
+```
+
 
 * ___Tiding___
 
