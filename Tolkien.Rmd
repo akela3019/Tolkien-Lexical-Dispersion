@@ -70,7 +70,7 @@ Legendarium_titles <- c("The Hobbit",
                         "The Return of the King",
                         "The Silmarillion*",
                         "The Children of Húrin*",
-                        "Of Tuor and His Coming to Gondolin*")
+                        "Of Tuor and his Coming to Gondolin*")
 
 load("data/Legendarium.RData")
 ```
