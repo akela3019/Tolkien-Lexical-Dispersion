@@ -1,7 +1,11 @@
 ---
 title: "Lexical Dispersion Plot for Words in Tolkien's Legendarium"
-output: html_document
+output: 
+  html_document:
+    toc: true
+    toc_depth: 4
 ---
+
 <style>
 body{ 
   font-size: 16px;
@@ -17,12 +21,13 @@ body{
 
 </style>
 
-### Source
+## Source
 
-* [The Hobbit](https://www.anderson1.org/site/handlers/filedownload.ashx?moduleinstanceid=24440&dataid=44258&FileName=hobbit.pdf)
-* [The Lord of The Rings](https://www.kaggle.com/ashishsinhaiitr/lord-of-the-rings-text)
-* [The Children of Húrin](https://archive.org/details/J.R.R.TolkienTheChildrenOfHurin)
-* [The Silmarillion](http://www.ae-lib.org.ua/texts-c/tolkien\_\_the_silmarillion\_\_en.htm)
+* [_The Hobbit_](https://www.anderson1.org/site/handlers/filedownload.ashx?moduleinstanceid=24440&dataid=44258&FileName=hobbit.pdf)
+* [_The Lord of The Rings_](https://www.kaggle.com/ashishsinhaiitr/lord-of-the-rings-text)
+* [_The Children of Húrin_](https://archive.org/details/J.R.R.TolkienTheChildrenOfHurin)
+* [_The Silmarillion_](http://www.ae-lib.org.ua/texts-c/tolkien\_\_the_silmarillion\_\_en.htm)
+* [_Of Tuor and His Coming to Gondolin_](http://www.ae-lib.org.ua/texts-c/tolkien__unfinished_tales__en.htm)
 
 ```{r setup, warning = FALSE, message=FALSE}
 knitr::opts_chunk$set(
@@ -54,9 +59,8 @@ newtheme <- theme_minimal(base_family = "Candara")+
         panel.spacing = unit(0, "mm"),
         panel.background = element_blank(),
         strip.background = element_blank(),
-        strip.text = element_text(size = 7.5, margin = margin(t = 2), 
-                                  color = "grey60", 
-                                  family = "Franklin Gothic Medium Cond"),
+        strip.text = element_text(size = 8.5, margin = margin(t = 2), 
+                                  color = "grey60", family = "Haettenschweiler"),
         axis.text = element_blank(),
         axis.title = element_blank())
 
@@ -65,7 +69,8 @@ Legendarium_titles <- c("The Hobbit",
                         "The Two Towers",
                         "The Return of the King",
                         "The Silmarillion*",
-                        "The Children of Húrin*")
+                        "The Children of Húrin*",
+                        "Of Tuor and His Coming to Gondolin*")
 
 load("data/Legendarium.RData")
 ```
@@ -87,6 +92,8 @@ LoTR_3_raw <- readLines_wrap("03 - The Return Of The King.txt")
 Sil_raw <- readLines_wrap("The Silmarillion.txt")
 
 CoH_raw <- readLines_wrap("The Children of Hurin.txt")
+
+Tuor_raw <- readLines_wrap("Of Tuor And His Coming To Gondolin.txt")
 ```
 
 
@@ -111,7 +118,7 @@ Tolkien_summarise <- function(text) {
 }
 ```
 
-### Data Cleaning 
+## Data Cleaning 
 
 ```{r data-cleaning, eval = FALSE}
 ## Hobbit --------------------
@@ -168,7 +175,19 @@ CoH <- CoH_raw %>%
   mutate(Chapter = as.factor(Chapter))%>%
   Tolkien_summarise()
 
-Legendarium_list <- list(Hobbit, LoTR_1, LoTR_2, LoTR_3, Sil, CoH)%>%
+## Of Tuor And His Coming To Gondolin ------------
+Tuor <- Tuor_raw %>%
+  Tolkien_cleaning() %>%
+  mutate(Chapter = "") %>%
+  group_by(Chapter) %>%
+  summarise(Text = paste(Text, collapse = " "))%>%
+  mutate(Word_Count = wordcount(Text))%>%
+  mutate(Chapter = as.factor(Chapter))
+  
+```
+
+```{r store-cleaned-data-in-a-list, eval = FALSE}
+Legendarium_list <- list(Hobbit, LoTR_1, LoTR_2, LoTR_3, Sil, CoH, Tuor)%>%
   `names<-`(Legendarium_titles)
 
 lex_width <- sapply(Legendarium_list, function(df) {sum(df$Word_Count)})%>%
@@ -184,10 +203,11 @@ lex_matrix <- sapply(1:length(lex_width), function(x) {
 #save(Legendarium_list, lex_width, lex_matrix, file = "data/Legendarium.RData")
 ```
 
-### Lexical Dispersion Plot
+## Lexical Dispersion Plot
 
 ```{r functions-keyword-locating}
 Keyword_locate <- function(text, keyword_regex, exclude = NULL) {
+  
   split <- paste0("(?<=", tolower(keyword_regex), ")")
   
   if(!is.null(exclude)) {
@@ -213,9 +233,11 @@ Keyword_df <- function(text_df, keyword_regex, exclude = NULL) {
   kword_loc <- sapply(text_df$Text, Keyword_locate, 
                       keyword_regex = keyword_regex,
                       exclude = exclude)
+  if(typeof(kword_loc) == "list") { kword_times <- sapply(kword_loc, length) }
+  else { kword_times <- sum(length(kword_loc)) }
   
-  data.frame(Chapter = rep(text_df$Chapter, sapply(kword_loc, length)),
-             Keyword_Loc = unlist(kword_loc),
+  data.frame(Chapter = rep(text_df$Chapter, kword_times),
+             Keyword_Loc = unlist(kword_loc) %>% unname,
              Keyword_Count = length(unlist(kword_loc)[!is.na(unlist(kword_loc))]))%>%
     mutate(Chapter = factor(Chapter, levels(text_df$Chapter))) %>%
     merge(text_df %>% select(-Text))%>%
@@ -226,31 +248,41 @@ Keyword_df <- function(text_df, keyword_regex, exclude = NULL) {
 ```{r functions-lexical-dispersion}
 ## Lexical Dispersion Plot
 lex_dispersion <- function(title, Keyword_Loc_list) {
+  
   w_count <- formatC(sum(Legendarium_list[[title]]$Word_Count), 
                                 format = "f", big.mark = ",", digits = 0)
   k_count <- Keyword_Loc_list[[title]][1, "Keyword_Count"]
-    
+  
+  plot_title <- paste0("***", title, "*** - <span style='color:tomato4'>",
+                       k_count, ifelse(k_count <= 1, " Time", " Times"), "</span>")
+  plot_subtitle <- paste(w_count, "Words")
+
+  if(title == tail(Legendarium_titles, 1)) {
+    plot_title <- paste(plot_title, "<span style='font-family:Candara; font-size:9.5pt'>",
+                        plot_subtitle, "</span>")
+    plot_subtitle <- " "
+  }
+
   p <- ggplot(Keyword_Loc_list[[title]]) +
     geom_rect(data = Legendarium_list[[title]] %>% 
                 mutate(fill = (row_number() %% 2 == 1)),
               aes(xmin = 0, xmax = Word_Count, 
                   ymin = 0, ymax = 1, fill = fill))+
+    labs(title = plot_title, subtitle = plot_subtitle)+
     scale_fill_manual(values = c("#d5d6d9", "#ededed"))+
     coord_cartesian(expand = FALSE)+
     facet_grid(~ Chapter, scales = "free_x", space = "free_x",
                switch = "x")+
-    labs(title = paste0("***", title, "*** - <span style='color:tomato4'>", 
-                        k_count, ifelse(k_count <= 1, " Time", " Times</span>")),
-         subtitle = paste(w_count, "Words"))+
     newtheme
   
   if(k_count > 0) {
     p <- p + geom_segment(aes(x = Keyword_Loc, xend = Keyword_Loc,
                               y = 0, yend = 1), 
                           size = 0.5, color = "tomato3",
-                          alpha = 0.5)
+                          alpha = 0.6)
     }
   
+
   p
 }
 
@@ -281,75 +313,106 @@ Legendarium_lex_dispersion <- function(keyword, keyword_regex, exclude = NULL) {
 }
 ```
 
-* ___Hope___/___Hopeful___
+### Keywords
 
-```{r hope, fig.width= 11, fig.height = 5}
+#### Hope/Hopeful
+
+```{r hope, fig.width= 11, fig.height = 6}
 Legendarium_lex_dispersion(
   keyword = "hope\", \"hopeful\" or \"estel",
   keyword_regex = "hope|estel",
   exclude = "no hope|hopeless")
 ```
 
-* ___Hopeless/No hope/Desperate/Despair___
+#### Hopeless/No Hope/Desperate/Despair
 
-```{r hopeless, fig.width= 11, fig.height = 5}
+```{r hopeless, fig.width= 11, fig.height = 6}
 Legendarium_lex_dispersion(
   keyword = "hopeless\", \"no hope\" or \"desperate",
   keyword_regex = "hopeless|desperate|no hope|despair")
 ```
-* ___Doom/Fate___
+#### Doom/Fate
 
-```{r doom, fig.width= 11, fig.height = 5}
+```{r doom, fig.width= 11, fig.height = 6}
 Legendarium_lex_dispersion(
   keyword = "doom\" or \"fate",
   keyword_regex = "\\bdoom\\b|\\bdooms\\b|fate")
 ```
 
 
-* ___Tiding___
+#### Tiding
 
-```{r tiding, fig.width= 11, fig.height = 5}
+```{r tiding, fig.width= 11, fig.height = 6}
 Legendarium_lex_dispersion(
   keyword = "tiding",
   keyword_regex = "tiding")
 ```
 
-* ___Hobbit/Halfling___
+### Races
 
-```{r hobbit, fig.width= 11, fig.height = 5}
+#### Hobbit/Halfling
+
+```{r hobbit, fig.width= 11, fig.height = 6}
 Legendarium_lex_dispersion(
   keyword = "hobbit\" or \"halfling",
   keyword_regex = "hobbit|halfling")
 ```
 
-* ___Elf___
+#### Elf
 
-```{r elf, fig.width= 11, fig.height = 5}
+```{r elf, fig.width= 11, fig.height = 6}
 Legendarium_lex_dispersion(
   keyword = "elf",
   keyword_regex = "\\belf\\b|\\belves\\b|\\belven\\b")
 ```
 
-* ___Dwarf___
+#### Dwarf
 
-```{r dwarf, fig.width= 11, fig.height = 5}
+```{r dwarf, fig.width= 11, fig.height = 6}
 Legendarium_lex_dispersion(
   keyword = "dwarf",
   keyword_regex = "dwarf|dwarves|dwarven")
 ```
 
-* ___Orc/Goblin___
+#### Orc/Goblin
 
-```{r orc, fig.width= 11, fig.height = 5}
+```{r orc, fig.width= 11, fig.height = 6}
 Legendarium_lex_dispersion(
   keyword = "Orc\" or \"Goblin",
   keyword_regex = "\\borc\\b|\\borcs\\b|goblin")
 ```
 
-* ___Eagle___
+#### Eagle
 
-```{r eagle, fig.width= 11, fig.height = 5}
+```{r eagle, fig.width= 11, fig.height = 6}
 Legendarium_lex_dispersion(
   keyword = "eagle",
   keyword_regex = "eagle")
+```
+
+### Numbers
+
+#### 3
+
+```{r three, fig.width= 11, fig.height = 6}
+Legendarium_lex_dispersion(
+  keyword = "three\" or \"third" ,
+  keyword_regex = "\\bthree\\b|\\bthird\\b")
+```
+
+#### 7
+
+```{r seven, fig.width= 11, fig.height = 6}
+Legendarium_lex_dispersion(
+  keyword = "seven\" or \"seventh",
+  keyword_regex = "\\bseven\\b|seventh")
+```
+
+
+#### 9
+
+```{r nine, fig.width= 11, fig.height = 6}
+Legendarium_lex_dispersion(
+  keyword = "nine\" or \"ninth",
+  keyword_regex = "\\bnine\\b|ninth")
 ```
